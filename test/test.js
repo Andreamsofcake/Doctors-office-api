@@ -5,7 +5,8 @@ process.env.NODE_ENV = 'testing';
 
 var _ = require('lodash');
 var expect = require('chai').expect;
-var request = require('request');
+var bluebird = require('bluebird');
+var request = bluebird.promisifyAll(require('request'));
 var util = require('util');
 var server = require('../server');
 var app = server.app;
@@ -38,23 +39,25 @@ describe('api', function() {
       name: 'Whitney Young',
       specialty: 'Proctologist',
     };
-    request.post(baseURL + '/api/doctors', { form: data }, function(err, response, body) {
-      Doctor.fetchAll().then(function(doctors) {
-        expect(JSON.parse(body)).to.eql({
-          doc: {
-            id: 1,
-            name: 'Whitney Young',
-            specialty: 'Proctologist',
-          }
-        })
-        expect(doctors.toJSON()).to.eql([{
+    request.postAsync(baseURL + '/api/doctors', { form: data })
+    .spread(function(response, body) {
+      expect(JSON.parse(body)).to.eql({
+        doc: {
           id: 1,
           name: 'Whitney Young',
           specialty: 'Proctologist',
-        }]);
+        }
       })
-      .done(done, done);
-    });
+      return Doctor.fetchAll();
+    })
+    .then(function(doctors) {
+      expect(doctors.toJSON()).to.eql([{
+        id: 1,
+        name: 'Whitney Young',
+        specialty: 'Proctologist',
+      }]);
+    })
+    .done(done, done);
   });
 
   it('rejects POST /api/doctors when there is too much info', function(done) {
@@ -64,14 +67,16 @@ describe('api', function() {
       address: 'Chicago',
       puppies: '12 of them'
     };
-    request.post(baseURL + '/api/doctors', { form: data }, function(err, response, body) {
+    request.postAsync(baseURL + '/api/doctors', { form: data })
+    .spread(function(response, body) {
       expect(JSON.parse(body)).to.eql({ error: 'Invalid request. Properties don\'t match allowed values.' });
       expect(response.statusCode).to.eql(400);
-      Doctor.fetchAll().then(function(doctors) {
-        expect(doctors.toJSON()).to.eql([]);
-      })
-      .done(done, done);
+      return Doctor.fetchAll();
     })
+    .then(function(doctors) {
+      expect(doctors.toJSON()).to.eql([]);
+    })
+    .done(done, done)
   });
 
   it('handles GET /api/doctors', function(done) {
