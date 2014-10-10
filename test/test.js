@@ -5,7 +5,8 @@ process.env.NODE_ENV = 'testing';
 
 var _ = require('lodash');
 var expect = require('chai').expect;
-var request = require('request');
+var bluebird = require('bluebird');
+var request = bluebird.promisifyAll(require('request'));
 var util = require('util');
 var server = require('../server');
 var app = server.app;
@@ -79,20 +80,17 @@ describe('api', function() {
       name: 'Whitney Young',
       specialty: 'Proctologist',
     };
-    request.post(baseURL + '/api/doctors', { form: data }, function(err, response, body) {
-      Doctor.fetchAll().then(function(doctors) {
-    // Need to post some data to the database before we try to pull it
-        request.get(baseURL + '/api/doctors', function(error, response, body) {
-          expect(JSON.parse(body)).to.eql({
-            doctors: [{
-              id: 1,
-              name: 'Whitney Young',
-              specialty: 'Proctologist',
-            }]
-          });
-          done();
-        });
+    Doctor.forge(data).save().then(function() {
+      return request.getAsync(baseURL + '/api/doctors');
+    }).spread(function(response, body) {
+      expect(JSON.parse(body)).to.eql({
+        doctors: [{
+          id: 1,
+          name: 'Whitney Young',
+          specialty: 'Proctologist',
+        }]
       });
-    });
+    })
+    .then(done, done);
   });
 });
